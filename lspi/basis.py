@@ -114,8 +114,9 @@ class IndActionRBFStateBasis(Basis):
 
         # make sure that all of the anchors are in the state space.
         self._anchors = list(anchors)
+        bounds = list(zip(self._observation_space.low, self._observation_space.high))
         for anch in anchors:
-            assert anch in self._observation_space
+            assert anch in self._observation_space, f"{anch} is not in {bounds}"
 
         self._num_actions = self._action_space.n
         self._observation_dim = len(self._anchors)
