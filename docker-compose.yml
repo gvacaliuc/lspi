@@ -1,8 +1,11 @@
 version: "3"
 services:
-  jupyter:
-    image: gvacaliuc/gym-notebook:latest
+  ros:
+    image: cannon/testing
     ports:
       - "8888:8888"
+    environment:
+      - DISPLAY
     volumes:
-      - ".:/home/jovyan/work"
+      - ".:/home/cannon/reinforcement_learning/lspi" 
+      - "/tmp/.X11-unix:/tmp/.X11-unix"

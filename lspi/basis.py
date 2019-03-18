@@ -1,17 +1,16 @@
 import abc
-from typing import Iterable
 
 import gym
 import numpy as np
 
 
-class Basis(object, metaclass=abc.ABCMeta):
+class Basis(object):
     """
     Class to represent our basis functions.
     """
 
     @abc.abstractmethod
-    def __call__(self, state, action) -> np.ndarray:
+    def __call__(self, state, action):
         """
         Returns a numpy array of each basis function evaluated at
         the state and action specified.
@@ -20,7 +19,7 @@ class Basis(object, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractproperty
-    def rank(self) -> int:
+    def rank(self):
         """
         Returns the rank of this basis.
         """
@@ -45,18 +44,15 @@ class IndActionPolyStateBasis(Basis):
         basis(np.ones(4) * 0.1, 1)
     """
 
-    def __init__(self,
-                 action_space: gym.spaces.Discrete,
-                 observation_space: gym.spaces.Space,
-                 order: int = 2):
+    def __init__(self, action_space, observation_space, order):
 
         self._action_space = action_space
         self._observation_space = observation_space
 
         self._num_actions = self._action_space.n
         self._observation_dim = np.product(
-            self._observation_space.shape) if len(
-                self._observation_space.shape) else 1
+            self._observation_space.shape) if hasattr(self._observation_space,
+                                                      "shape") else 1
 
         # rank of this basis
         self._order = order
@@ -78,11 +74,10 @@ class IndActionPolyStateBasis(Basis):
 
     def __call__(self, state, action):
         """
-        Computes the function ϕ(s, a) for this basis.
         """
 
-        assert state in self._observation_space
-        assert action in self._action_space
+        # assert state in self._observation_space
+        # assert action in self._action_space
 
         phi = np.zeros(self.rank)
         dim = self.rank // self._num_actions
@@ -104,19 +99,21 @@ class IndActionRBFStateBasis(Basis):
     """
 
     def __init__(self,
-                 anchors: Iterable[np.ndarray],
-                 action_space: gym.spaces.Discrete,
-                 observation_space: gym.spaces.Space,
-                 metric: str = "euclidean"):
+                 anchors,
+                 action_space,
+                 observation_space,
+                 metric="euclidean"):
 
         self._action_space = action_space
         self._observation_space = observation_space
 
         # make sure that all of the anchors are in the state space.
         self._anchors = list(anchors)
-        bounds = list(zip(self._observation_space.low, self._observation_space.high))
+        bounds = list(
+            zip(self._observation_space.low, self._observation_space.high))
         for anch in anchors:
-            assert anch in self._observation_space, f"{anch} is not in {bounds}"
+            # assert anch in self._observation_space, "{anch} is not in {bounds}".format(anch=anch, bounds=bounds)
+            pass
 
         self._num_actions = self._action_space.n
         self._observation_dim = len(self._anchors)
@@ -144,11 +141,10 @@ class IndActionRBFStateBasis(Basis):
 
     def __call__(self, state, action):
         """
-        Computes the function ϕ(s, a) for this basis.
         """
 
-        assert state in self._observation_space
-        assert action in self._action_space
+        assert self._observation_space.contains(state)
+        assert self._observation_space.contains(action)
 
         phi = np.zeros(self.rank)
         dim = self.rank // self._num_actions
@@ -156,3 +152,54 @@ class IndActionRBFStateBasis(Basis):
         phi[action * dim:(action + 1) * dim] = self._eval_rbf(state)
 
         return phi
+
+
+class QuadraticBasis(Basis):
+    def __init__(self, coefs, action_space, observation_space):
+
+        self._coefs = coefs
+        self._rank = len(self._coefs) + 1
+        assert type(action_space) is gym.spaces.Discrete or type(
+            action_space) is gym.spaces.Box
+        self._action_space = action_space
+        assert type(observation_space) is gym.spaces.Box
+        self._observation_space = observation_space
+
+        action = action_space.sample()
+        action = np.array([action]) if type(action) is int else action
+        state = observation_space.sample()
+        z = np.hstack([action.flatten(), state.flatten()])
+
+    @property
+    def rank(self):
+        return self._rank
+
+    def __call__(self, state, action):
+        action = np.array([action]) if type(action) is int else action
+        z = np.hstack([action.flatten(), state.flatten()])
+        return np.array([1] + [z.dot(coef).dot(z) for coef in self._coefs])
+        # return np.array([z.dot(coef).dot(z) for coef in self._coefs])
+
+
+class DiscreteRBFTupleBasis(Basis):
+    def __init__(self,
+                 anchor_lists,
+                 action_space,
+                 observation_space,
+                 metric="euclidean"):
+
+        self._bases = [
+            IndActionRBFStateBasis(anchors, action_space, space)
+            for anchors, space in zip(anchor_lists, observation_space.spaces)
+        ]
+
+    @property
+    def rank(self):
+        return sum([base.rank for base in self._bases])
+
+    def __call__(self, states, action):
+        """
+        """
+
+        return np.concat(
+            [base(state, action) for state, base in zip(states, self._bases)])

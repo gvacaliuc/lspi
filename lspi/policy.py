@@ -6,7 +6,7 @@ import numpy as np
 from .basis import Basis
 
 
-class Policy(object, metaclass=abc.ABCMeta):
+class Policy(object):
     @abc.abstractmethod
     def __call__(self, state):
         """
@@ -15,7 +15,7 @@ class Policy(object, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def update(self, weights) -> float:
+    def update(self, weights):
         """
         Returns the "difference" between the current weights, and new weights.
         """
@@ -23,14 +23,14 @@ class Policy(object, metaclass=abc.ABCMeta):
 
 
 class RandomPolicy(Policy):
-    def __init__(self, env: gym.Env):
+    def __init__(self, env):
         """
         Creates a random policy.
         """
         self._env = env
 
     def __call__(self, state):
-        assert state in self._env.observation_space
+        # assert state in self._env.observation_space
         return self._env.action_space.sample()
 
     def update(self, weights):
@@ -47,8 +47,7 @@ class DiscreteActionBasisPolicy(Policy):
         dabp(1)
     """
 
-    def __init__(self, space: gym.spaces.Discrete, basis: Basis,
-                 weights: np.ndarray):
+    def __init__(self, space, basis, weights):
 
         self._space = space
 
@@ -66,7 +65,7 @@ class DiscreteActionBasisPolicy(Policy):
         qvalues = np.zeros(self._space.n)
         for action in range(self._space.n):
             phi = self._basis(state, action)
-            qvalues[action] = phi @ self._weights
+            qvalues[action] = phi.dot(self._weights)
 
         return np.argmax(qvalues)
 
@@ -80,3 +79,33 @@ class DiscreteActionBasisPolicy(Policy):
         diff = np.linalg.norm(self._weights - weights)
         self._weights = weights
         return diff
+
+
+class ExplorationPolicy(Policy):
+    """
+    Implements a policy which occasionally executes a random action.
+    """
+
+    def __init__(self, env, policy, rate=0.9):
+        """
+        policy(state) is executed rate * 100 % of the time.
+        """
+
+        self._rpolicy = RandomPolicy(env)
+        self._policy = policy
+        self._rate = rate
+
+    def __call__(self, state):
+        """
+        Returns the optimal action at this state.
+        """
+
+        return self._policy(
+            state) if np.random.rand() < self._rate else self._rpolicy(state)
+
+    def update(self, weights):
+        """
+        Updates the weights of this policy.
+        """
+
+        raise NotImplemented("Cannot update an immutable ExplorationPolicy")

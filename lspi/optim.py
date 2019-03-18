@@ -1,5 +1,3 @@
-from typing import Iterable, List
-
 import numpy as np
 from numpy.linalg import LinAlgError
 
@@ -8,14 +6,14 @@ from .policy import Policy
 
 
 class LSTDQ(object):
-    def __init__(self, basis: Basis, discount=0.9, gamma=1e-3):
+    def __init__(self, basis, discount=0.9, gamma=1e-3):
 
         self._basis = basis
         self._k = self._basis.rank
         self._discount = discount
         self._gamma = gamma
 
-    def fit(self, data: Iterable, policy: Policy):
+    def fit(self, data, policy):
         """
         Performs an iteration of LSTDQ.
         """
@@ -31,9 +29,9 @@ class LSTDQ(object):
             b += reward * phi
 
         try:
-            self.weights_ = np.linalg.inv(A) @ b
+            self.weights_ = np.linalg.inv(A).dot(b)
         except LinAlgError as e:
-            print(f"A is uninvertable:\n {A}")
+            print("A is uninvertable:\n {A}".format(A=A))
             self.weights_ = np.zeros((self._k, ))
 
         return self
@@ -52,11 +50,7 @@ class LSPI(object):
         lspi.fit(data)
     """
 
-    def __init__(self,
-                 optimizer: LSTDQ,
-                 policy: Policy,
-                 max_iter=50,
-                 epsilon=1e-3):
+    def __init__(self, optimizer, policy, max_iter=50, epsilon=1e-3):
 
         self._optimizer = optimizer
         self._policy = policy
@@ -64,7 +58,7 @@ class LSPI(object):
         self._max_iter = max_iter
         self._epsilon = epsilon
 
-    def fit(self, data: List):
+    def fit(self, data):
 
         for self.itr_ in range(self._max_iter):
             self._optimizer.fit(data, self._policy)
