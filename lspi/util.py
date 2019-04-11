@@ -1,10 +1,9 @@
 # from collections.abc import Generator
 
+from itertools import product
+
 import gym
 import numpy as np
-
-from .policy import Policy
-
 
 def generate_sample_data(num_samples, env, policy):
     """
@@ -80,6 +79,30 @@ def random_discretization(space, n):
     return [space.sample() for _ in range(n)]
 
 
+def ur5_discretizer(space, n, low=-np.inf, high=np.inf):
+    """
+    Returns a set of n valid actions in the provided space.
+    """
+
+    assert type(space) == gym.spaces.Tuple
+    assert len(space.spaces) == 1
+    assert type(space.spaces[0]) == gym.spaces.Box
+
+    # for each dimension in the space we want to get a set of 
+    # linearly discretized actions to take
+    joints = space.spaces[0].shape[0]
+    low = space.spaces[0].low.clip(min=low)
+    high = space.spaces[0].high.clip(max=high)
+    n = n if hasattr(n, "__iter__") else [n] * joints
+
+    actions_per_joint = []
+
+    for num, lower_bound, upper_bound in zip(n, low, high):
+        actions_per_joint.append(np.linspace(lower_bound, upper_bound, num))
+
+    return [(np.array(actions),) for actions in product(*actions_per_joint)]
+
+
 def linear_discretization(space, n):
     if type(space) is gym.spaces.Box and space.shape == (1, ):
         return [
@@ -111,3 +134,13 @@ class DiscreteEnvWrapper(gym.Env):
 
     def step(self, action):
         return self._env.step(self._actions[action])
+
+
+def toArray(obj):
+    if type(obj) is tuple:
+        return np.hstack(obj)
+    if type(obj) is int or type(obj) is float:
+        return np.array([obj])
+    if type(obj) is list:
+        return np.array(obj)
+    return obj

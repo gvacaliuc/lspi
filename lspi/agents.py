@@ -1,7 +1,6 @@
 import gym
 from .util import random_discretization
 
-
 class RLAgent(object):
     """ Abstract base class for reinforcement learning agents. """
     __metaclass__ = abc.ABCMeta
@@ -75,7 +74,7 @@ class PolicyAgent(RLAgent):
         self._env = env
         self._policy = policy
 
-        self._current_state = None
+        self._current_state = self._env.reset()
 
     def reset(self):
         """

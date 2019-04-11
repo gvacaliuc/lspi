@@ -3,6 +3,7 @@ import abc
 import gym
 import numpy as np
 
+from .util import toArray
 
 class Basis(object):
     """
@@ -76,8 +77,8 @@ class IndActionPolyStateBasis(Basis):
         """
         """
 
-        # assert state in self._observation_space
-        # assert action in self._action_space
+        assert self._observation_space.contains(state)
+        assert self._action_space.contains(action)
 
         phi = np.zeros(self.rank)
         dim = self.rank // self._num_actions
@@ -144,7 +145,7 @@ class IndActionRBFStateBasis(Basis):
         """
 
         assert self._observation_space.contains(state)
-        assert self._observation_space.contains(action)
+        assert self._action_space.contains(action)
 
         phi = np.zeros(self.rank)
         dim = self.rank // self._num_actions
@@ -180,13 +181,55 @@ class QuadraticBasis(Basis):
         return np.array([1] + [z.dot(coef).dot(z) for coef in self._coefs])
         # return np.array([z.dot(coef).dot(z) for coef in self._coefs])
 
+class DiscreteQuadraticBasis(Basis):
+    def __init__(self, coefs, actions, observation_space):
+
+        self._coefs = coefs
+        self._rank = len(self._coefs) + 1
+        self._actions = actions
+        self._action_space = gym.spaces.Discrete(len(self._actions))
+        assert type(observation_space) is gym.spaces.Box
+        self._observation_space = observation_space
+
+        action = toArray(self._actions[0])
+        state = observation_space.sample()
+        z = np.hstack([action.flatten(), state.flatten()])
+
+        for matrix in self._coefs:
+            assert matrix.shape[0] == len(z) and matrix.shape[1] == len(z)
+
+    @property
+    def rank(self):
+        return self._rank
+
+    def __call__(self, state, action):
+        action = toArray(self._actions[action])
+        state = toArray(state)
+        z = np.hstack([action.flatten(), state.flatten()])
+        return np.array([1] + [z.dot(coef).dot(z) for coef in self._coefs])
+
+class DiscreteQuadraticTupleBasis(Basis):
+    def __init__(self, coef_list, actions, observation_space):
+        self._bases = [
+            DiscreteQuadraticBasis(coefs, actions, space)
+            for coefs, space in zip(coef_list, observation_space.spaces)
+        ]
+
+    @property
+    def rank(self):
+        return sum([base.rank for base in self._bases])
+
+    def __call__(self, states, action):
+        return np.hstack(
+            [base(state, action) for state, base in zip(states, self._bases)])
+
+
 
 class DiscreteRBFTupleBasis(Basis):
     def __init__(self,
                  anchor_lists,
                  action_space,
-                 observation_space,
-                 metric="euclidean"):
+                 observation_space):
 
         self._bases = [
             IndActionRBFStateBasis(anchors, action_space, space)
@@ -203,3 +246,30 @@ class DiscreteRBFTupleBasis(Basis):
 
         return np.concat(
             [base(state, action) for state, base in zip(states, self._bases)])
+
+
+def genRandomMatrix(shape, mean=0.0, scale=1.0):
+    return np.random.normal(loc=mean, scale=scale, size=shape)
+
+
+def makeBasis(conf, actions, stateSpace):
+
+    assert "type" in conf
+    assert "size" in conf
+    assert conf["type"] in ["quadratic", "rbf"]
+
+    if conf["type"] == "quadratic":
+
+        coefs = []
+        for space in stateSpace.spaces:
+            stateSize = len(toArray(actions[0])) + len(toArray(space.sample()))
+            coefs.append([genRandomMatrix((stateSize, stateSize),
+                                           conf.get("mean", 0.0),
+                                           conf.get("scale", 1.0))
+                           for _ in xrange(conf["size"])])
+
+
+        return DiscreteQuadraticTupleBasis(coefs, actions, stateSpace)
+
+    else:
+        raise NotImplemented("Haven't handled rbf bases yet.")

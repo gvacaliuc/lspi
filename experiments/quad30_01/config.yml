@@ -1,0 +1,17 @@
+env:
+  robot_conf_file: "/home/cannon/rl_wksp/src/rosgym/src/rosgym/ur5_config_random_goal.py"
+  planning_group: manipulator
+  num_joints: 3
+agent:
+  discount_factor: 0.98
+  tol: 0.001
+  actions_per_joint: 4
+  max_iter: 50
+  basis:
+    type: quadratic
+    size: 30
+experiment:
+  num_rollouts: 10
+  num_timesteps: 1000
+  num_tests_per_iteration: 100
+  max_test_iter: 400
